@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import struct
+from .classes import IBinary
 
 
 @dataclass
@@ -8,32 +9,30 @@ class ClientRequest:
     Класс для запроса клиента
     """
     command_code: int
-    room: int = 0
-    card: str = ''
-
-    MASK: str = 'h i 50s'  # маска запроса. Снала идет команда (short), затем номер команты (int) и код карты (str)
+    body: IBinary | None = None
+    MASK: str = 'h'  # маска команды запроса
 
     def encode(self):
         """
         Кодирование запроса для отправки
         :return: поток байтов
         """
-        return struct.pack(ClientRequest.MASK, self.command_code, self.room, self.card.encode())
+        request_encoded = bytearray(struct.pack(self.MASK, self.command_code))  # кодируем команду запроса
+
+        if self.body is not None:
+            body_encoded = self.body.encode()  # кодируем тело запроса
+            request_encoded.extend(body_encoded)
+        return request_encoded
 
     @classmethod
     def decode(cls, byte_stream):
         """
-        Декодирование запроса
+        Декоридрование запроса
         :param byte_stream: поток байтов
-        :return: экземпляр класса ClientRequest, собранный из потока байтов
+        :return: команда запроса и заенкоденно тело
         """
-        fields_tuple = struct.unpack(cls.MASK, byte_stream)
-        instance = cls(
-            command_code=fields_tuple[0],
-            room=fields_tuple[1],
-            card=fields_tuple[2].decode().rstrip('\x00'),  # убираем лишнии символы
-        )
-        return instance
+        command = struct.unpack(cls.MASK, byte_stream[0:2])[0]
+        return command, byte_stream[2:]
 
 
 @dataclass
@@ -44,7 +43,7 @@ class ServerResponse:
     success: bool
     msg: str
 
-    MASK: str = '? 50s'  # маска отмета. Снала идет статус (bool), затем сообщение (str)
+    MASK: str = '? 100s'  # маска отмета. Снала идет статус (bool), затем сообщение (str)
 
     def encode(self):
         """
@@ -65,4 +64,5 @@ class ServerResponse:
             success=fields_tuple[0],
             msg=fields_tuple[1].decode().rstrip('\x00'),  # убираем лишнии символы
         )
+        print(instance)
         return instance
