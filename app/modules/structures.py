@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import struct
-from .classes import IBinary
+from .classes import CardRoomPair
 
 
 @dataclass
@@ -9,8 +9,8 @@ class ClientRequest:
     Класс для запроса клиента
     """
     command_code: int
-    body: IBinary | None = None
-    MASK: str = 'h'  # маска команды запроса
+    body: CardRoomPair | None = None
+    MASK: str = 'h'  # базовая маска команды запроса
 
     def encode(self):
         """
@@ -31,8 +31,12 @@ class ClientRequest:
         :param byte_stream: поток байтов
         :return: команда запроса и заенкоденно тело
         """
-        command = struct.unpack(cls.MASK, byte_stream[0:2])[0]
-        return command, byte_stream[2:]
+        command = struct.unpack(cls.MASK, byte_stream[0:2])[0]  # так как команда - short, то это первые 2 байта
+        instance = cls(command_code=command)
+        if len(byte_stream) > 2:
+            body = CardRoomPair.decode(byte_stream[2:])  # остальные байты - тело запроса
+            instance.body = body
+        return instance
 
 
 @dataclass
@@ -64,5 +68,4 @@ class ServerResponse:
             success=fields_tuple[0],
             msg=fields_tuple[1].decode().rstrip('\x00'),  # убираем лишнии символы
         )
-        print(instance)
         return instance

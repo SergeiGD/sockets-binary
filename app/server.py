@@ -1,6 +1,6 @@
 import socket
 from modules.structures import ClientRequest, ServerResponse
-from modules.classes import Card, CardRoomPair
+import redis
 
 
 def run_server():
@@ -9,6 +9,13 @@ def run_server():
     server.bind(('localhost', 9090))
     server.listen(1)
 
+    redis_connection = redis.StrictRedis(
+        host='localhost',
+        port=6379,
+        decode_responses=True,
+        charset='utf-8',
+    )
+
     print('Ожидание подключения')
     client, addr = server.accept()
     print(f'Клиент {addr} подключился')
@@ -16,28 +23,29 @@ def run_server():
     while True:
         # обслуживаем клиента, пока он не захочет первать соединение
         data = client.recv(1024)
-        request_code, encoded_body = ClientRequest.decode(data)  # декодим запрос клиента
-        print(f'Получен запрос {request_code}')
+        request = ClientRequest.decode(data)  # декодим запрос клиента
+        print(f'Получен запрос {request.command_code}')
 
-        if request_code == 0:
-            # команда регистрации карточки
-            card = Card.decode(encoded_body)  # декоридруем тело запроса
-            msg = f'Карта {card.card_number} успешно зарегестрирована'
-            response = ServerResponse(success=True, msg=msg)
+        if request.command_code == 0:
+            # команда проверки доступа
+            if redis_connection.sismember(request.body.card_number, request.body.room):
+                response = ServerResponse(success=True, msg='Доступ разрешен')
+            else:
+                response = ServerResponse(success=False, msg='Доступ запрещен')
 
-        elif request_code == 1:
+        elif request.command_code == 1:
             # команда привязки карты к номеру
-            card_room = CardRoomPair.decode(encoded_body)  # декоридруем тело запроса
-            msg = f'Карта {card_room.card_number} привязана к номеру {card_room.room}'
+            redis_connection.sadd(request.body.card_number, request.body.room)
+            msg = f'Карта {request.body.card_number} привязана к номеру {request.body.room}'
             response = ServerResponse(success=True, msg=msg)
 
-        elif request_code == 2:
+        elif request.command_code == 2:
             # команда отвязки карты от номера
-            card_room = CardRoomPair.decode(encoded_body)  # декоридруем тело запроса
-            msg = f'Карта {card_room.card_number} отвязана от номера {card_room.room}'
+            redis_connection.srem(request.body.card_number, 1, request.body.room)
+            msg = f'Карта {request.body.card_number} отвязана от номера {request.body.room}'
             response = ServerResponse(success=True, msg=msg)
 
-        elif request_code == 3:
+        elif request.command_code == 3:
             # команда отключения
             print('Сервер отключен')
             client.close()
@@ -45,12 +53,10 @@ def run_server():
             return
 
         else:
-            msg = 'Неопознаная комманда'
-            response = ServerResponse(success=False, msg=msg)
+            response = ServerResponse(success=False, msg='Неопознаная комманда')
 
         client.send(response.encode())  # посылаем ответ клиенту
 
 
 if __name__ == '__main__':
     run_server()
-

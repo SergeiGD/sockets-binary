@@ -1,6 +1,6 @@
 import socket
 from modules.structures import ServerResponse, ClientRequest
-from modules.classes import Card, CardRoomPair
+from modules.classes import CardRoomPair
 
 
 def run_client():
@@ -11,7 +11,7 @@ def run_client():
 
     while True:
         print('Выберите действие:')
-        print('0 - зарегестрировать карту')
+        print('0 - проверить доступ')
         print('1 - привязать карту к номеру')
         print('2 - отвязать карту от номера')
         print('3 - выключение')
@@ -19,38 +19,10 @@ def run_client():
         if not command.isdigit() or int(command) < 0 or int(command) > 3:
             print('Неизвестная команда')
             continue
-
         command = int(command)
 
-        if command == 0:
-            card_number = input('Номер карты ')
-            while len(card_number) > 50:
-                print('Номер карты не может содержать более 50 символов')
-                card_number = input('Номер карты ')
-
-            is_super_card = input('Зарегестрировать как суперкарту? (y - да) ')
-            if is_super_card == 'y':
-                is_super_card = True
-            else:
-                is_super_card = False
-
-            request_body = Card(card_number=card_number, is_super_card=is_super_card)
-            request = ClientRequest(command_code=command, body=request_body)
-
-        if command == 1 or command == 2:
-            # если команда 1 или 2, то это привязка/отвязка номера и номер карты и команты
-            room_number = input('Номер команты ')
-            card_number = input('Номер карты ')
-
-            while not room_number.isdigit():
-                print('Нвереный формат номера комнаты, необходимо число')
-                room_number = input('Номер команты ')
-
-            room_number = int(room_number)
-
-            while len(card_number) > 50:
-                print('Номер карты не может содержать более 50 символов')
-                card_number = input('Номер карты ')
+        if command == 0 or command == 1 or command == 2:
+            room_number, card_number = read_pair()  # получаем номер команты и карты
 
             request_body = CardRoomPair(room=room_number, card_number=card_number)
             request = ClientRequest(command_code=command, body=request_body)
@@ -65,12 +37,34 @@ def run_client():
             # если команда не 3 (отключение), то придет ответ
             data = client.recv(1024)
             response = ServerResponse.decode(data)  # декодим пришедший ответ
-            print(response.msg)
+            print(f'Успех: {response.success}')
+            print(f'Сообщение: {response.msg}')
         else:
             # иначе просто отключаемся
             print('Отключение')
             client.close()
             return
+
+
+def read_pair():
+    """
+    Считываем номера комнаты и карты
+    :return: пара номер комнаты, номер карты
+    """
+    room_number = input('Номер команты ')
+
+    while not room_number.isdigit():
+        print('Нвереный формат номера комнаты, необходимо число')
+        room_number = input('Номер команты ')
+
+    room_number = int(room_number)
+    card_number = input('Номер карты ')
+
+    while len(card_number) > 50:
+        print('Номер карты не может содержать более 50 символов')
+        card_number = input('Номер карты ')
+
+    return room_number, card_number
 
 
 if __name__ == '__main__':
