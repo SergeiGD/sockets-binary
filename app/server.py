@@ -1,5 +1,6 @@
 import socket
 from modules.structures import ClientRequest, ServerResponse
+from modules.classes import Card, CardRoomPair
 import redis
 
 
@@ -23,29 +24,57 @@ def run_server():
     while True:
         # обслуживаем клиента, пока он не захочет первать соединение
         data = client.recv(1024)
-        request = ClientRequest.decode(data)  # декодим запрос клиента
-        print(f'Получен запрос {request.command_code}')
+        # request = ClientRequest.decode(data)  # декодим запрос клиента
+        request_code, encoded_body = ClientRequest.decode(data)  # декодим запрос клиента
+        print(f'Получен запрос {request_code}')
 
-        if request.command_code == 0:
+        if request_code == 0:
             # команда проверки доступа
-            if redis_connection.sismember(request.body.card_number, request.body.room):
+            pair = CardRoomPair.decode(encoded_body)
+            if redis_connection.hget(pair.card_number, 'room') == str(pair.room) or \
+                    redis_connection.hexists(pair.card_number, 'is_super_card'):
                 response = ServerResponse(success=True, msg='Доступ разрешен')
             else:
                 response = ServerResponse(success=False, msg='Доступ запрещен')
 
-        elif request.command_code == 1:
+        elif request_code == 1:
+            # команда деактивации карты
+            card = Card.decode(encoded_body)
+            redis_connection.delete(card.card_number)  # удаляем из редиса
+            msg = f'Карта {card.card_number} деактивироана'
+            response = ServerResponse(success=True, msg=msg)
+
+        elif request_code == 2:
             # команда привязки карты к номеру
-            redis_connection.sadd(request.body.card_number, request.body.room)
-            msg = f'Карта {request.body.card_number} привязана к номеру {request.body.room}'
-            response = ServerResponse(success=True, msg=msg)
+            pair = CardRoomPair.decode(encoded_body)
+            if redis_connection.exists(pair.card_number):
+                # чтоб не перезаписывать уже имеющиеся данные, кидаем отказ
+                msg = 'Эта карта уже активирована сначала'
+                response = ServerResponse(success=False, msg=msg)
+            else:
+                redis_connection.hset(pair.card_number, mapping={
+                    'room': pair.room
+                })
+                redis_connection.expire(pair.card_number, pair.time_to_live)  # устанавливаем TTL записи
+                msg = f'Карта {pair.card_number} привязана к номеру {pair.room}'
+                response = ServerResponse(success=True, msg=msg)
 
-        elif request.command_code == 2:
-            # команда отвязки карты от номера
-            redis_connection.srem(request.body.card_number, 1, request.body.room)
-            msg = f'Карта {request.body.card_number} отвязана от номера {request.body.room}'
-            response = ServerResponse(success=True, msg=msg)
+        elif request_code == 3:
+            # команда создания карты сотрудника
+            card = Card.decode(encoded_body)
+            if redis_connection.exists(card.card_number):
+                # чтоб не перезаписывать уже имеющиеся данные, кидаем отказ
+                msg = 'Эта карта уже активирована'
+                response = ServerResponse(success=False, msg=msg)
+            else:
+                redis_connection.hset(card.card_number, mapping={
+                    'is_super_card': 1
+                })
+                redis_connection.expire(card.card_number, card.time_to_live)  # устанавливаем TTL записи
+                msg = f'Карта сотрудника {card.card_number} создана'
+                response = ServerResponse(success=True, msg=msg)
 
-        elif request.command_code == 3:
+        elif request_code == 4:
             # команда отключения
             print('Сервер отключен')
             client.close()
