@@ -1,6 +1,7 @@
 import socket
 from modules.structures import ServerResponse, ClientRequest
 from modules.classes import CardRoomPair, Card
+import struct
 
 
 def run_client():
@@ -14,9 +15,10 @@ def run_client():
         print('1 - деактивировать карту')
         print('2 - привязать карту к номеру')
         print('3 - создать карту сотрудника')
-        print('4 - выключение')
+        print('4 - выключение сервера')
+        print('5 - отключится')
         command = input('Выберите действие: ')
-        if not command.isdigit() or int(command) < 0 or int(command) > 4:
+        if not command.isdigit() or int(command) < 0 or int(command) > 5:
             print('Неизвестная команда')
             continue
         command = int(command)
@@ -52,16 +54,21 @@ def run_client():
             request_body = Card(card_number=card_number, time_to_live=time_to_live)
             request = ClientRequest(command_code=command, body=request_body)
 
-        if command == 4:
-            #  если запрос отключения, то кидаем только номер команлы
+        if command == 4 or command == 5:
+            #  если запрос выключение сервера/отключения, то кидаем только номер команлы
             request = ClientRequest(command_code=command)
 
         client.send(request.encode())  # отправляем заэнкоженные запрос
 
-        if command != 4:
-            # если команда не 3 (отключение), то придет ответ
+        if command != 4 and command != 5:
+            # если команда не 4/5 (отключение/выключение), то придет ответ
             data = client.recv(1024)
-            response = ServerResponse.decode(data)  # декодим пришедший ответ
+            try:
+                response = ServerResponse.decode(data)  # декодим пришедший ответ
+            except struct.error:
+                print('Ошибка при получении ответа. Похоже, сервер не активен')
+                client.close()
+                return
             print(f'Успех: {response.success}')
             print(f'Сообщение: {response.msg}')
         else:
@@ -102,8 +109,8 @@ def read_time_to_live():
         print('Время действия не может быть меньше 1 дня')
         time_to_live = input('Время действия (в днях) ')
 
-    SECONDS_IN_DAY = 86400  # т.к. редис хранит TTL в секундах, сразу приведем к ним
-    time_to_live = int(time_to_live) * SECONDS_IN_DAY
+    seconds_in_day = 86400  # т.к. редис хранит TTL в секундах, сразу приведем к ним
+    time_to_live = int(time_to_live) * seconds_in_day
 
     return time_to_live
 

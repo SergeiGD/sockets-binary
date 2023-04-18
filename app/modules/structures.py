@@ -59,9 +59,7 @@ class ServerResponse:
         :param byte_stream: поток байтов
         :return: экземпляр класса ServerResponse, собранный из потока байтов
         """
-        print(byte_stream)
         fields_tuple = struct.unpack(cls.MASK, byte_stream)
-        print(fields_tuple[0])
         instance = cls(
             success=fields_tuple[0],
             msg=fields_tuple[1].decode().rstrip('\x00'),  # убираем лишнии символы
