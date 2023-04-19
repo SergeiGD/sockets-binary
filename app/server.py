@@ -6,11 +6,50 @@ import redis
 import os
 import threading
 from redis import Redis
+import posix_ipc
 
 
 PID_FILE = '.pid'
-pid = os.getpid()
-active_sockets = []
+SEMAPHORE_NAME = 'server_mutex'
+SERVER_HOST = 'localhost'
+SERVER_PORT = 9090
+REDIS_PORT = 6379
+
+
+def exit_program():
+    """
+    Корректный выход из программы
+    :return:
+    """
+    for i in active_sockets:
+        i.close()  # закрываем сокеты
+    semaphore.release()  # освобождаем семафор
+    semaphore.close()
+    os.kill(pid, signal.SIGTERM)  # убиваем процесс
+
+
+def remove_pid_file(*args, **kwargs):
+    """
+    Удаление pid файла (ведет к выходу из программы)
+    :param args:
+    :param kwargs:
+    :return:
+    """
+    try:
+        os.remove(PID_FILE)  # удаляем .pid файл
+    except OSError:
+        pass
+
+
+def pid_file_listener():
+    """
+    Прослушиватель .pid файла, выходит из программы при его удалении
+    :return:
+    """
+    while os.path.isfile(PID_FILE):
+        pass  # ожидаем удаления файла
+    print('.pid файл удален, выключение...')
+    exit_program()
 
 
 def client_listener(client: socket, addr: tuple[str, int], redis_connection: Redis):
@@ -76,10 +115,7 @@ def client_listener(client: socket, addr: tuple[str, int], redis_connection: Red
         elif request_code == 5:
             # команда выключения сервера
             print('Получена команда отключения')
-            try:
-                os.remove(PID_FILE)  # удаляем файл, это сигнал к отключения сервера
-            except OSError:
-                pass
+            remove_pid_file()  # удаление pid файла заставляет программу выключатсья
             return
         elif request_code == 6:
             # команда отключения клиента
@@ -100,15 +136,16 @@ def run_server():
     """
     redis_connection = redis.StrictRedis(
         host='localhost',
-        port=6379,
+        port=REDIS_PORT,
         decode_responses=True,
         charset='utf-8',
     )
 
     # биндим сокет и начинаем прослушивание
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # помечаем как переиспользуемый
     active_sockets.append(server)
-    server.bind(('localhost', 9090))
+    server.bind((SERVER_HOST, SERVER_PORT))
     server.listen(5)
     print('Ожидание подключения')
 
@@ -120,21 +157,20 @@ def run_server():
         threading.Thread(target=client_listener, args=(client, addr, redis_connection)).start()
 
 
-def pid_file_listener():
-    """
-    Прослушиватель .pid файла, отключает все соединения при его удалении
-    :return:
-    """
-    while os.path.isfile(PID_FILE):
-        pass  # ожидаем удаления файла
-    print('.pid файл удален, выключение...')
-    for i in active_sockets:
-        i.close()  # закрываем сокеты
-    os.kill(pid, signal.SIGTERM)  # убиваем процесс
-
-
 if __name__ == '__main__':
+    try:
+        # создаем семафор, если его нету
+        semaphore = posix_ipc.Semaphore(SEMAPHORE_NAME, posix_ipc.O_CREX, initial_value=1)
+    except posix_ipc.ExistentialError:
+        # иначе активируем уже имеющийся
+        semaphore = posix_ipc.Semaphore(SEMAPHORE_NAME)
+    semaphore.acquire()  # ставим блокировку
+
+    pid = os.getpid()
     with open(PID_FILE, 'w') as pid_file:
-        pid_file.write(str(pid))
-    threading.Thread(target=pid_file_listener).start()
-    run_server()
+        pid_file.write(str(pid))  # записываем id процесса в файл
+
+    threading.excepthook = remove_pid_file  # отлавливаем исключения в потоках для корректного выхода из программы
+    threading.Thread(target=pid_file_listener).start()  # просушивание .pid файла
+    active_sockets = []  # список активный сокетов (будут отключены при выходе из программы)
+    run_server()  # запускаем сервер
