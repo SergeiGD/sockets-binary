@@ -60,8 +60,7 @@ class ServerResponse:
         :return: экземпляр класса ServerResponse, собранный из потока байтов
         """
         fields_tuple = struct.unpack(cls.MASK, byte_stream)
-        instance = cls(
+        return cls(
             success=fields_tuple[0],
             msg=fields_tuple[1].decode().rstrip('\x00'),  # убираем лишнии символы
         )
-        return instance
