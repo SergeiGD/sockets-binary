@@ -185,7 +185,6 @@ if __name__ == '__main__':
 
     # вешаем обработчики при выходе через CTRL + C
     signal.signal(signal.SIGINT, stop_signals_handler)
-    signal.signal(signal.SIGTERM, stop_signals_handler)
 
     threading.excepthook = remove_pid_file  # отлавливаем исключения в потоках для корректного выхода из программы
     threading.Thread(target=pid_file_listener).start()  # просушивание .pid файла
