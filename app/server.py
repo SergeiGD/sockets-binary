@@ -52,6 +52,16 @@ def pid_file_listener():
     exit_program()
 
 
+def stop_signals_handler(signum, frame):
+    """
+    Обработчик сигналов выключения (при выходе черех CTRL + C)
+    :param signum:
+    :param frame:
+    :return:
+    """
+    remove_pid_file()
+
+
 def client_listener(client: socket, addr: tuple[str, int], redis_connection: Redis):
     """
     Обслуживание запросов клиента
@@ -150,7 +160,10 @@ def run_server():
     print('Ожидание подключения')
 
     while True:
-        client, addr = server.accept()
+        try:
+            client, addr = server.accept()
+        except socket.error:
+            break
         active_sockets.append(client)
         print(f'Клиент {addr} подключился')
         # запускаем взаимодейтсвие в новом потоке
@@ -169,6 +182,10 @@ if __name__ == '__main__':
     pid = os.getpid()
     with open(PID_FILE, 'w') as pid_file:
         pid_file.write(str(pid))  # записываем id процесса в файл
+
+    # вешаем обработчики при выходе через CTRL + C
+    signal.signal(signal.SIGINT, stop_signals_handler)
+    signal.signal(signal.SIGTERM, stop_signals_handler)
 
     threading.excepthook = remove_pid_file  # отлавливаем исключения в потоках для корректного выхода из программы
     threading.Thread(target=pid_file_listener).start()  # просушивание .pid файла
