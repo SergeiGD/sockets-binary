@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-import struct
 from .classes import IBinary
+from .response_codes import ResponseCodes
+import bitstring
 
 
 @dataclass
@@ -10,29 +11,39 @@ class ClientRequest:
     """
     command_code: int
     body: IBinary | None = None
-    MASK: str = 'B'  # базовая маска команды запроса
+    MASK: str = 'uint4'  # базовая маска команды запроса
 
     def encode(self):
         """
         Кодирование запроса для отправки
         :return: поток байтов
         """
-        request_encoded = bytearray(struct.pack(self.MASK, self.command_code))  # кодируем команду запроса
-
         if self.body is not None:
-            body_encoded = self.body.encode()  # кодируем тело запроса, если оно есть
-            request_encoded.extend(body_encoded)
-        return request_encoded
+            request_encoded = bitstring.pack(self.MASK, self.command_code)  # кодируем команду запроса
+            body_encoded = self.body.encode()  # кодируем тело запроса
+            request_encoded.append(body_encoded)
+            return request_encoded.bytes
+        else:
+            # если нету тела, то возвращаем просто код запроса
+            request_encoded = bitstring.pack('uint8', self.command_code)  # uint8 т.к. должно быть кратно 8
+            return request_encoded.bytes
 
     @classmethod
     def decode(cls, byte_stream):
         """
         Декоридрование запроса
         :param byte_stream: поток байтов
-        :return: команда запроса и заенкоденно тело
+        :return: команда запроса и закодированное тело
         """
-        command = struct.unpack(cls.MASK, byte_stream[0:1])[0]  # т.к. command_code это char, то это первый байт
-        return command, byte_stream[1:]
+        bit_stream = bitstring.BitStream(byte_stream)  # преобразуем в биты
+        if len(bit_stream) > 8:
+            # если есть тело, то возращем команду вместе с телом
+            command = bit_stream.read(4).uint  # если есть тело, то первые 4 бита - код запроса
+            return command, bit_stream[4:]
+        else:
+            # иначе только команду
+            command = bit_stream.read(8).uint  # если нет тела, то весь первый байт код запроса
+            return command, None
 
 
 @dataclass
@@ -41,16 +52,16 @@ class ServerResponse:
     Класс для ответа сервера
     """
     success: bool
-    msg: str
+    code: ResponseCodes
 
-    MASK: str = '? 50s'  # маска ответа. Снала идет статус (bool), затем сообщение (str)
+    MASK: str = 'bool, uint7'  # маска ответа. Снала идет статус, затем код ответа (uint7 чтоб было кратно 8)
 
     def encode(self):
         """
         Кодирование отмета для отправки
         :return: поток байтов
         """
-        return struct.pack(ServerResponse.MASK, self.success, self.msg.encode())
+        return bitstring.pack(self.MASK, self.success, self.code.value).bytes
 
     @classmethod
     def decode(cls, byte_stream):
@@ -59,8 +70,8 @@ class ServerResponse:
         :param byte_stream: поток байтов
         :return: экземпляр класса ServerResponse, собранный из потока байтов
         """
-        fields_tuple = struct.unpack(cls.MASK, byte_stream)
+        bit_stream = bitstring.BitStream(byte_stream)  # преобразуем в биты
         return cls(
-            success=fields_tuple[0],
-            msg=fields_tuple[1].decode().rstrip('\x00'),  # убираем лишнии символы
+            success=bit_stream.read(1).bool,
+            code=ResponseCodes(bit_stream.read(7).uint),
         )

@@ -65,11 +65,12 @@ def run_client():
             try:
                 response = ServerResponse.decode(data)  # декодим пришедший ответ
             except struct.error:
-                print('Ошибка при получении ответа. Похоже, сервер не активен')
+                print('Ошибка при получении ответа. Похоже, на сервер произошла ошибка, повторите запрос позже')
+                print('Отключение')
                 client.close()
                 return
             print(f'Успех: {response.success}')
-            print(f'Сообщение: {response.msg}')
+            print(f'Статус: {response.code.name}')
         else:
             # иначе просто отключаемся
             print('Отключение')
@@ -84,25 +85,25 @@ def read_room_number() -> int:
     """
     room_number = input('Номер команты: ')
 
-    while not room_number.isdigit() or int(room_number) < 0:
-        print('Нвереный формат номера комнаты, необходимо целое число')
+    while not room_number.isdigit() or int(room_number) < 0 or int(room_number) > 1023:
+        print('Невереный формат номера комнаты, необходимо целое положительное число меньше 1023')
         room_number = input('Номер команты ')
 
     return int(room_number)
 
 
-def read_card_number() -> str:
+def read_card_number() -> int:
     """
     Считывание номера карты
     :return: номер карты
     """
     card_number = input('Номер карты: ')
 
-    while len(card_number) > 10:
-        print('Номер карты не может содержать более 10 символов')
+    while not card_number.isdigit() or int(card_number) < 0 or int(card_number) > 1023:
+        print('Невереный формат номера карты, необходимо целое положительное число меньше 1023')
         card_number = input('Номер карты ')
 
-    return card_number
+    return int(card_number)
 
 
 def read_time_to_live() -> int:
@@ -112,12 +113,9 @@ def read_time_to_live() -> int:
     """
     time_to_live = input('Время действия (в днях): ')
 
-    while not time_to_live.isdigit() or int(time_to_live) < 1 or int(time_to_live) > 255:
-        print('Время действия должно быть числом меньше 1 и не больше 255')
+    while not time_to_live.isdigit() or int(time_to_live) < 1 or int(time_to_live) > 1023:
+        print('Невереный формат времени действия, необходимо целое положительное число меньше 1023')
         time_to_live = input('Время действия (в днях) ')
-
-    # seconds_in_day = 86400  # т.к. редис хранит TTL в секундах, сразу приведем к ним
-    # time_to_live = int(time_to_live) * seconds_in_day
 
     return int(time_to_live)
 

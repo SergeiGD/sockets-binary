@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-import struct
 from abc import ABC, abstractmethod
+import bitstring
 
 
 class IBinary(ABC):
@@ -22,19 +22,19 @@ class CardRoomPair(IBinary):
     """
     Класс, представляющий собой пару карточки-команата
     """
-    card_number: str
+    card_number: int
     room: int
-    MASK: str = f'10s H'  # маска для пары карточка-комната. Сначала номер карточки (str), затем комната (int)
+    MASK: str = 'uint10, uint10'  # маска для пары карточка-комната
 
     def encode(self):
-        return struct.pack(self.MASK, self.card_number.encode(), self.room)
+        return bitstring.pack(self.MASK, self.card_number, self.room)
 
     @classmethod
     def decode(cls, byte_stream):
-        base_fields = struct.unpack(cls.MASK, byte_stream)  # первый 10 байт - это карточка и номер
+        bit_stream = bitstring.BitStream(byte_stream)  # преобразуем в биты
         return cls(
-            card_number=base_fields[0].decode().rstrip('\x00'),  # убираем лишнии символы
-            room=base_fields[1],
+            card_number=bit_stream.read(10).uint,
+            room=bit_stream.read(10).uint,
         )
 
 
@@ -43,24 +43,24 @@ class Card(IBinary):
     """
     Класс, представляющий собой карточку
     """
-    card_number: str
+    card_number: int
     time_to_live: int | None = None
-    MASK: str = f'10s'  # базовая маска для карточки
+    MASK: str = 'uint10, uint10'  # базовая маска для карточки. В сумме должно быть 20, т.к. к кода запроса 4
 
     def encode(self):
-        encoded_pair = bytearray(struct.pack(self.MASK, self.card_number.encode()))  # кодируем номер карточки
-        if self.time_to_live is not None:
-            # если есть TTL, то дополнительно кодируем его
-            encoded_pair.extend(struct.pack('B', self.time_to_live))
-        return encoded_pair
+        if self.time_to_live is None:
+            self.time_to_live = 0  # если нету time_to_live, то ставим его равным нулю, чтоб нормально закодировать
+        return bitstring.pack(self.MASK, self.card_number, self.time_to_live)
 
     @classmethod
     def decode(cls, byte_stream):
-        card_number = struct.unpack(cls.MASK, byte_stream[0:10])[0]  # первый 10 байт - карточка номера
+        bit_stream = bitstring.BitStream(byte_stream)  # преобразуем в биты
+        card_number = bit_stream.read(10).uint  # декодируем номер команты
         instance = cls(
-            card_number=card_number.decode().rstrip('\x00'),  # убираем лишнии символы
+            card_number=card_number,
         )
-        if len(byte_stream) > 10:
-            time_to_live = struct.unpack('B', byte_stream[10:])[0]  # если есть еще байты, то это TTL
+        time_to_live = bit_stream.read(10).uint  # декодируем TTL
+        if time_to_live != 0:
+            # если TTL равен нулю, то его не нужно учитывать, а если не равен, то добавляем к инстансу
             instance.time_to_live = time_to_live
         return instance

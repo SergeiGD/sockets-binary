@@ -2,6 +2,7 @@ import signal
 import socket
 from modules.structures import ClientRequest, ServerResponse
 from modules.classes import Card, CardRoomPair
+from modules.response_codes import ResponseCodes
 import redis
 import os
 import threading
@@ -36,7 +37,9 @@ def remove_pid_file(*args, **kwargs):
     :return:
     """
     if args:
+        # если есть ошибки, то выводим их
         print(args)
+
     try:
         os.remove(PID_FILE)  # удаляем .pid файл
     except OSError:
@@ -82,49 +85,44 @@ def client_listener(client: socket, addr: tuple[str, int], redis_connection: Red
             # команда проверки доступа
             pair = CardRoomPair.decode(encoded_body)
             if redis_connection.sismember(pair.card_number, pair.room):
-                response = ServerResponse(success=True, msg='Доступ разрешен')
+                response = ServerResponse(success=True, code=ResponseCodes.OK)
             else:
-                response = ServerResponse(success=False, msg='Доступ запрещен')
+                response = ServerResponse(success=False, code=ResponseCodes.ACCESS_DENIED)
 
         elif request_code == 1:
             # команда активации карты
             card = Card.decode(encoded_body)
             if redis_connection.exists(card.card_number):
-                msg = 'Эта карта уже активирована'
-                response = ServerResponse(success=False, msg=msg)
+                response = ServerResponse(success=False, code=ResponseCodes.ALREADY_ACTIVE)
             else:
                 # добавляем элемент с пустым значением (т.к. сет не может быть пустым)
                 redis_connection.sadd(card.card_number, '')
-                seconds_in_day = 86400  # т.к. редис хранит TTL в секундах, приведем к ним
+                seconds_in_day = 86400  # редис хранит TTL в секундах, а приходят дни, так что преобразуем к секундам
                 time_to_live = int(card.time_to_live) * seconds_in_day
                 redis_connection.expire(card.card_number, time_to_live)
-                msg = f'Карта {card.card_number} активироана'
-                response = ServerResponse(success=True, msg=msg)
+                response = ServerResponse(success=True, code=ResponseCodes.OK)
 
         elif request_code == 2:
             # команда деактивации карты
             card = Card.decode(encoded_body)
             redis_connection.delete(card.card_number)  # удаляем ключ
-            msg = f'Карта {card.card_number} деактивироана'
-            response = ServerResponse(success=True, msg=msg)
+            response = ServerResponse(success=True, code=ResponseCodes.OK)
 
         elif request_code == 3:
             # команда привязки карты к номеру
             pair = CardRoomPair.decode(encoded_body)
             if not redis_connection.exists(pair.card_number):
-                msg = 'Эта карта не активирована'
-                response = ServerResponse(success=False, msg=msg)
+                response = ServerResponse(success=False, code=ResponseCodes.INACTIVE)
             else:
                 redis_connection.sadd(pair.card_number, pair.room)  # добавляем элемент к множеству
-                msg = f'Карта {pair.card_number} привязана к номеру {pair.room}'
-                response = ServerResponse(success=True, msg=msg)
+                response = ServerResponse(success=True, code=ResponseCodes.OK)
 
         elif request_code == 4:
             # команда отвязки карты от номера
             pair = CardRoomPair.decode(encoded_body)
             redis_connection.srem(pair.card_number, pair.room)  # удаляем элемент из множества
             msg = f'Карта {pair.card_number} отвязана от номера {pair.room}'
-            response = ServerResponse(success=True, msg=msg)
+            response = ServerResponse(success=True, code=ResponseCodes.OK)
 
         elif request_code == 5:
             # команда выключения сервера
@@ -138,7 +136,7 @@ def client_listener(client: socket, addr: tuple[str, int], redis_connection: Red
             active_sockets.remove(client)  # удаляем из активных сокетов
             return
         else:
-            response = ServerResponse(success=False, msg='Неопознаная комманда')
+            response = ServerResponse(success=False, code=ResponseCodes.UNKNOWN_COMMAND)
 
         client.send(response.encode())  # посылаем ответ клиенту
 
