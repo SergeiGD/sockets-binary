@@ -10,7 +10,7 @@ class ClientRequest:
     """
     command_code: int
     body: IBinary | None = None
-    MASK: str = 'h'  # базовая маска команды запроса
+    MASK: str = 'B'  # базовая маска команды запроса
 
     def encode(self):
         """
@@ -31,8 +31,8 @@ class ClientRequest:
         :param byte_stream: поток байтов
         :return: команда запроса и заенкоденно тело
         """
-        command = struct.unpack(cls.MASK, byte_stream[0:2])[0]  # т.к. command_code это short, то это первые 2 байта
-        return command, byte_stream[2:]
+        command = struct.unpack(cls.MASK, byte_stream[0:1])[0]  # т.к. command_code это char, то это первый байт
+        return command, byte_stream[1:]
 
 
 @dataclass
@@ -43,7 +43,7 @@ class ServerResponse:
     success: bool
     msg: str
 
-    MASK: str = '? 100s'  # маска ответа. Снала идет статус (bool), затем сообщение (str)
+    MASK: str = '? 50s'  # маска ответа. Снала идет статус (bool), затем сообщение (str)
 
     def encode(self):
         """

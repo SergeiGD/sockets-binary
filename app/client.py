@@ -84,8 +84,8 @@ def read_room_number() -> int:
     """
     room_number = input('Номер команты: ')
 
-    while not room_number.isdigit():
-        print('Нвереный формат номера комнаты, необходимо число')
+    while not room_number.isdigit() or int(room_number) < 0:
+        print('Нвереный формат номера комнаты, необходимо целое число')
         room_number = input('Номер команты ')
 
     return int(room_number)
@@ -98,8 +98,8 @@ def read_card_number() -> str:
     """
     card_number = input('Номер карты: ')
 
-    while len(card_number) > 50:
-        print('Номер карты не может содержать более 50 символов')
+    while len(card_number) > 10:
+        print('Номер карты не может содержать более 10 символов')
         card_number = input('Номер карты ')
 
     return card_number
@@ -112,14 +112,14 @@ def read_time_to_live() -> int:
     """
     time_to_live = input('Время действия (в днях): ')
 
-    while not time_to_live.isdigit() or int(time_to_live) < 1:
-        print('Время действия должно быть числом меньше 1')
+    while not time_to_live.isdigit() or int(time_to_live) < 1 or int(time_to_live) > 255:
+        print('Время действия должно быть числом меньше 1 и не больше 255')
         time_to_live = input('Время действия (в днях) ')
 
-    seconds_in_day = 86400  # т.к. редис хранит TTL в секундах, сразу приведем к ним
-    time_to_live = int(time_to_live) * seconds_in_day
+    # seconds_in_day = 86400  # т.к. редис хранит TTL в секундах, сразу приведем к ним
+    # time_to_live = int(time_to_live) * seconds_in_day
 
-    return time_to_live
+    return int(time_to_live)
 
 
 if __name__ == '__main__':

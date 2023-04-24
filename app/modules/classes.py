@@ -24,14 +24,14 @@ class CardRoomPair(IBinary):
     """
     card_number: str
     room: int
-    MASK: str = f'50s i'  # маска для пары карточка-комната. Сначала номер карточки (str), затем комната (int)
+    MASK: str = f'10s H'  # маска для пары карточка-комната. Сначала номер карточки (str), затем комната (int)
 
     def encode(self):
         return struct.pack(self.MASK, self.card_number.encode(), self.room)
 
     @classmethod
     def decode(cls, byte_stream):
-        base_fields = struct.unpack(cls.MASK, byte_stream[0:56])  # первый 56 байтов - это карточка и номер
+        base_fields = struct.unpack(cls.MASK, byte_stream)  # первый 10 байт - это карточка и номер
         return cls(
             card_number=base_fields[0].decode().rstrip('\x00'),  # убираем лишнии символы
             room=base_fields[1],
@@ -45,22 +45,22 @@ class Card(IBinary):
     """
     card_number: str
     time_to_live: int | None = None
-    MASK: str = f'50s'  # базовая маска для карточки
+    MASK: str = f'10s'  # базовая маска для карточки
 
     def encode(self):
         encoded_pair = bytearray(struct.pack(self.MASK, self.card_number.encode()))  # кодируем номер карточки
         if self.time_to_live is not None:
             # если есть TTL, то дополнительно кодируем его
-            encoded_pair.extend(struct.pack('l', self.time_to_live))
+            encoded_pair.extend(struct.pack('B', self.time_to_live))
         return encoded_pair
 
     @classmethod
     def decode(cls, byte_stream):
-        card_number = struct.unpack(cls.MASK, byte_stream[0:50])[0]  # первый 50 байт - карточка номера
+        card_number = struct.unpack(cls.MASK, byte_stream[0:10])[0]  # первый 10 байт - карточка номера
         instance = cls(
             card_number=card_number.decode().rstrip('\x00'),  # убираем лишнии символы
         )
-        if len(byte_stream) > 50:
-            time_to_live = struct.unpack('l', byte_stream[50:])[0]  # если есть еще байты, то это TTL
+        if len(byte_stream) > 10:
+            time_to_live = struct.unpack('B', byte_stream[10:])[0]  # если есть еще байты, то это TTL
             instance.time_to_live = time_to_live
         return instance

@@ -35,6 +35,8 @@ def remove_pid_file(*args, **kwargs):
     :param kwargs:
     :return:
     """
+    if args:
+        print(args)
     try:
         os.remove(PID_FILE)  # удаляем .pid файл
     except OSError:
@@ -93,7 +95,9 @@ def client_listener(client: socket, addr: tuple[str, int], redis_connection: Red
             else:
                 # добавляем элемент с пустым значением (т.к. сет не может быть пустым)
                 redis_connection.sadd(card.card_number, '')
-                redis_connection.expire(card.card_number, card.time_to_live)
+                seconds_in_day = 86400  # т.к. редис хранит TTL в секундах, приведем к ним
+                time_to_live = int(card.time_to_live) * seconds_in_day
+                redis_connection.expire(card.card_number, time_to_live)
                 msg = f'Карта {card.card_number} активироана'
                 response = ServerResponse(success=True, msg=msg)
 
