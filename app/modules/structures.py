@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from .classes import IBinary
 from .response_codes import ResponseCodes
 import bitstring
+from typing import ClassVar
 
 
 @dataclass
@@ -11,7 +12,7 @@ class ClientRequest:
     """
     command_code: int
     body: IBinary | None = None
-    MASK: str = 'uint4'  # базовая маска команды запроса
+    MASK: ClassVar[str] = 'uint4'  # базовая маска команды запроса
 
     def encode(self):
         """
@@ -54,7 +55,7 @@ class ServerResponse:
     success: bool
     code: ResponseCodes
 
-    MASK: str = 'bool, uint7'  # маска ответа. Снала идет статус, затем код ответа (uint7 чтоб было кратно 8)
+    MASK: ClassVar[str] = 'bool, uint7'  # маска ответа. Снала идет статус, затем код ответа (uint7 чтоб было кратно 8)
 
     def encode(self):
         """

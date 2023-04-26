@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 import bitstring
+from typing import ClassVar
 
 
 class IBinary(ABC):
@@ -24,7 +25,7 @@ class CardRoomPair(IBinary):
     """
     card_number: int
     room: int
-    MASK: str = 'uint10, uint10'  # маска для пары карточка-комната
+    MASK: ClassVar[str] = 'uint10, uint10'  # маска для пары карточка-комната
 
     def encode(self):
         return bitstring.pack(self.MASK, self.card_number, self.room)
@@ -45,7 +46,7 @@ class Card(IBinary):
     """
     card_number: int
     time_to_live: int | None = None
-    MASK: str = 'uint10, uint10'  # базовая маска для карточки. В сумме должно быть 20, т.к. к кода запроса 4
+    MASK: ClassVar[str] = 'uint10, uint10'  # базовая маска для карточки. В сумме должно быть 20, т.к. к кода запроса 4
 
     def encode(self):
         if self.time_to_live is None:
