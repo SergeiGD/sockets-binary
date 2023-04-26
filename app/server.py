@@ -1,7 +1,7 @@
 import signal
 import socket
 from modules.structures import ClientRequest, ServerResponse
-from modules.classes import Card, CardRoomPair
+from modules.classes import Card, CardRoomPair, CardTtlPair
 from modules.response_codes import ResponseCodes
 import redis
 import os
@@ -91,7 +91,7 @@ def client_listener(client: socket, addr: tuple[str, int], redis_connection: Red
 
         elif request_code == 1:
             # команда активации карты
-            card = Card.decode(encoded_body)
+            card = CardTtlPair.decode(encoded_body)
             if redis_connection.exists(card.card_number):
                 response = ServerResponse(success=False, code=ResponseCodes.ALREADY_ACTIVE)
             else:

@@ -1,6 +1,6 @@
 import socket
 from modules.structures import ServerResponse, ClientRequest
-from modules.classes import CardRoomPair, Card
+from modules.classes import CardRoomPair, CardTtlPair, Card
 import struct
 
 
@@ -36,7 +36,7 @@ def run_client():
             # команда активации карты
             card_number = read_card_number()  # получаем номер карты
             card_ttl = read_time_to_live()  # получаем номер карты
-            request_body = Card(card_number=card_number, time_to_live=card_ttl)
+            request_body = CardTtlPair(card_number=card_number, time_to_live=card_ttl)
             request = ClientRequest(command_code=command, body=request_body)
 
         if command == 2:
